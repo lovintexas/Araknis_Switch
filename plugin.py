@@ -86,7 +86,9 @@ class Controller(udi_interface.Node):
     # --- developer-authored overrides (edit freely; regeneration preserves them) ---
 
     def start(self):
+        import logsafe
         from udi_interface import LOGGER
+        logsafe.install()
         LOGGER.info('Araknis plugin starting')
         self._started = True
         self.discover()
@@ -186,15 +188,33 @@ class Controller(udi_interface.Node):
         if getattr(self, '_started', False) and not getattr(self, '_ports', None):
             self.discover()
 
+    # --- log redaction: installed when this module is imported ---------------------------
+    # This class body runs when main.py imports plugin.py, which is before
+    # udi_interface.Interface() exists and therefore before PG3 can send any config or
+    # customParams message for the framework to log. (udi_interface itself logs one line
+    # during its own import that no plugin code can get ahead of -- see README.)
+    import logsafe as _logsafe_early
+    _logsafe_early.install()
+
     def processConfig(self, *args, **kwargs):
-        pass
+        import logsafe
+        logsafe.install()  # idempotent: re-check every handler after PG3 config arrives
 
     def parameterHandler(self, params):
+        import logsafe
+        from udi_interface import LOGGER
         params = params or {}
+        # Teach the log filter the exact password (raw and stripped) before anything else can
+        # log it, and re-check that the filter is on every handler.
+        logsafe.add_secret(params.get('password') if isinstance(params.get('password'), str) else None)
         cfg = {}
         for key in ('host', 'username', 'password'):
             val = params.get(key)
             cfg[key] = val.strip() if isinstance(val, str) else ''
+        logsafe.add_secret(cfg['password'])
+        logsafe.install()
+        LOGGER.debug('Araknis: parameters received (host set: %s, username set: %s, password set: %s)',
+                     bool(cfg['host']), bool(cfg['username']), bool(cfg['password']))
         old = getattr(self, '_cfg', None)
         self._cfg = cfg
         if old is not None and old != cfg:

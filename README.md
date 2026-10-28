@@ -22,6 +22,14 @@ Install, open the plugin's configuration page and enter the switch **host** (IP)
 - Port nodes are named at creation. To pick up a renamed switch port, delete that node and run *Discover Ports*.
 - SFP ports and LAGs are not modelled (no PoE).
 
+## Security note: credentials and logs
+The plugin keeps the switch password out of its logs. It never logs login requests or responses, and `logsafe.py` adds a redaction filter to the log handlers as soon as the plugin loads. Passwords, usernames, cookies and session tokens, `Authorization` headers and the encrypted login values are replaced with `[REDACTED]` at every log level. That includes messages written by `udi_interface` itself, such as PG3's configuration message, and anything printed to stdout/stderr. Connection failures, HTTP status codes, port numbers, PoE commands and retries are still logged.
+
+This is not complete protection:
+- Redaction is pattern based. Until the plugin has read its own configuration, a secret is recognised by the name it is logged under (`password`, `token`, ...), not by its value.
+- `udi_interface` writes the `PG3INIT` value (PG3's own MQTT credential) to the log while it is being imported, and to `crash.log` if it fails to start. That happens before any plugin code can run, so this plugin cannot filter it. PG3x's own logs are also outside the plugin's control.
+- Log files written by earlier versions of this plugin may still contain the password. Delete old files in `logs/` and change the switch password if in doubt.
+
 ## License Notice
 
 This plugin's development referenced the following source(s), whose license is not on the standard permissive allowlist. Review their license terms before relying on or redistributing this plugin:

@@ -14,6 +14,7 @@ import time
 
 import requests
 import udi_interface
+import logsafe
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
@@ -26,6 +27,8 @@ DELIVERING = (2, 6)  # 2 = Delivering, 6 = Requesting power
 
 
 def make_client(host, username, password):
+    # Whatever key or format it is logged under, this password must never reach a log.
+    logsafe.add_secret(password or '')
     return {
         'host': (host or '').strip(),
         'user': username or '',
@@ -46,6 +49,7 @@ def _login(c):
     base = 'http://%s' % c['host']
     s = c['s']
     r = s.get(base + '/conf/key', timeout=10)
+    LOGGER.debug('Araknis: GET /conf/key -> HTTP %s', r.status_code)
     r.raise_for_status()
     pub = serialization.load_pem_public_key(r.text.strip().encode())
 
@@ -54,7 +58,10 @@ def _login(c):
 
     r = s.post(base + '/cgi-bin/datajson.cgi?login',
                data={'etvapqp': enc(c['user']), 'rctater': enc(c['pw'])}, timeout=20)
+    # Status and result code only: never the request or response body.
+    LOGGER.debug('Araknis: login POST -> HTTP %s', r.status_code)
     j = json.loads(r.text)
+    LOGGER.debug('Araknis: login result=%s', j.get('result'))
     if j.get('result') != 0:
         c['next_login'] = now + LOGIN_BACKOFF_S
         c['logged_in'] = False
@@ -73,8 +80,11 @@ def _call(c, method, endpoint, body=None):
                 r = c['s'].get(url, timeout=20)
             else:
                 r = c['s'].post(url, data=body, timeout=30)
+            LOGGER.debug('Araknis: %s %s -> HTTP %s', method, endpoint, r.status_code)
             j = json.loads(r.text)
             if j.get('result') == 2:  # session expired
+                LOGGER.info('Araknis: session expired on %s (attempt %d of 2), logging in again',
+                            endpoint, _attempt + 1)
                 c['logged_in'] = False
                 continue
             if j.get('result') != 0:
