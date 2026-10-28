@@ -1,0 +1,16 @@
+{
+  "name": "Araknis",
+  "docs": "https://github.com/lovintexas/Araknis_Switch",
+  "type": "python3",
+  "executable": "main.py",
+  "install": "install.sh",
+  "description": "Monitor and control PoE on Araknis 310-series managed switches (per-port PoE on/off/power-cycle, link speed, power draw).",
+  "notice": "Enter the switch IP address, username and password in the plugin configuration.",
+  "shortPoll": 30,
+  "longPoll": 300,
+  "customParams": {
+    "host": "",
+    "username": "",
+    "password": ""
+  }
+}

@@ -1,0 +1,267 @@
+{
+  "profile": {
+    "editors": [
+      {
+        "id": "poe_onoff",
+        "ranges": [
+          {
+            "uom": "25",
+            "subset": "0,1",
+            "names": {
+              "0": "Off",
+              "1": "On"
+            }
+          }
+        ]
+      },
+      {
+        "id": "link_speed",
+        "ranges": [
+          {
+            "uom": "25",
+            "subset": "0,1,2,3",
+            "names": {
+              "0": "Down",
+              "1": "10 Mbps",
+              "2": "100 Mbps",
+              "3": "1 Gbps"
+            }
+          }
+        ]
+      },
+      {
+        "id": "poe_state",
+        "ranges": [
+          {
+            "uom": "25",
+            "subset": "0,1,2,3,4,5,6",
+            "names": {
+              "0": "Disabled",
+              "1": "Detecting",
+              "2": "Delivering",
+              "3": "Test Mode",
+              "4": "Fault",
+              "5": "Other Fault",
+              "6": "Requesting"
+            }
+          }
+        ]
+      },
+      {
+        "id": "watts",
+        "ranges": [
+          {
+            "uom": "73",
+            "min": 0,
+            "max": 400,
+            "prec": 1
+          }
+        ]
+      },
+      {
+        "id": "volts",
+        "ranges": [
+          {
+            "uom": "72",
+            "min": 0,
+            "max": 60,
+            "prec": 1
+          }
+        ]
+      },
+      {
+        "id": "milliamps",
+        "ranges": [
+          {
+            "uom": "41",
+            "min": 0,
+            "max": 1000,
+            "prec": 0
+          }
+        ]
+      },
+      {
+        "id": "ED_CONTROLLER_ST",
+        "ranges": [
+          {
+            "subset": "0,1",
+            "uom": "25",
+            "names": {
+              "0": "Not Connected",
+              "1": "Connected"
+            }
+          }
+        ]
+      }
+    ],
+    "linkdefs": [],
+    "nodedefs": [
+      {
+        "id": "controller",
+        "name": "Araknis Switch",
+        "icon": "GenericCtl",
+        "properties": [
+          {
+            "id": "ST",
+            "name": "Status",
+            "editor": "ED_CONTROLLER_ST"
+          }
+        ],
+        "cmds": {
+          "sends": [],
+          "accepts": [
+            {
+              "id": "DISCOVER",
+              "name": "Discover Ports",
+              "native": "false"
+            }
+          ]
+        },
+        "links": {
+          "ctl": [],
+          "rsp": []
+        }
+      },
+      {
+        "id": "poesummary",
+        "name": "PoE Summary",
+        "icon": "GenericCtl",
+        "properties": [
+          {
+            "id": "ST",
+            "name": "Total PoE Power",
+            "editor": "watts"
+          },
+          {
+            "id": "POE_BUDGET",
+            "name": "PoE Budget",
+            "editor": "watts"
+          }
+        ],
+        "cmds": {
+          "sends": [],
+          "accepts": [
+            {
+              "id": "QUERY",
+              "name": "Query",
+              "native": "false"
+            }
+          ]
+        },
+        "links": {
+          "ctl": [],
+          "rsp": []
+        }
+      },
+      {
+        "id": "poeport",
+        "name": "Switch Port",
+        "icon": "GenericCtl",
+        "properties": [
+          {
+            "id": "ST",
+            "name": "PoE Power",
+            "editor": "poe_onoff"
+          },
+          {
+            "id": "POE_STATE",
+            "name": "PoE State",
+            "editor": "poe_state"
+          },
+          {
+            "id": "LINK_SPEED",
+            "name": "Link",
+            "editor": "link_speed"
+          },
+          {
+            "id": "CPW",
+            "name": "PoE Power Used",
+            "editor": "watts"
+          },
+          {
+            "id": "CV",
+            "name": "PoE Voltage",
+            "editor": "volts"
+          },
+          {
+            "id": "CC",
+            "name": "PoE Current",
+            "editor": "milliamps"
+          }
+        ],
+        "cmds": {
+          "sends": [],
+          "accepts": [
+            {
+              "id": "DON",
+              "name": "PoE On",
+              "native": "false"
+            },
+            {
+              "id": "DOF",
+              "name": "PoE Off",
+              "native": "false"
+            },
+            {
+              "id": "POE_CYCLE",
+              "name": "PoE Power Cycle",
+              "native": "false"
+            },
+            {
+              "id": "QUERY",
+              "name": "Query",
+              "native": "false"
+            }
+          ]
+        },
+        "links": {
+          "ctl": [],
+          "rsp": []
+        }
+      }
+    ]
+  },
+  "server_entry": {
+    "name": "Araknis",
+    "desc": "Monitor and control PoE on Araknis 310-series managed switches (per-port PoE on/off/power-cycle, link speed, power draw).",
+    "type": "python3",
+    "discover": true,
+    "shortPoll": 30,
+    "longPoll": 300,
+    "isyAccess": false,
+    "requireEisyui": false,
+    "authorize": false,
+    "webhook_enabled": false,
+    "ai_enabled": false,
+    "customParams": {
+      "host": "",
+      "username": "",
+      "password": ""
+    },
+    "extra_requirements": [
+      "requests>=2.31.0",
+      "cryptography>=41.0.0"
+    ]
+  },
+  "readme_body": "# Araknis (310-series switch) plugin for eisy / IoX\n\nMonitors and controls PoE on an Araknis 310-series managed switch (developed against an AN-310-SW-24-POE, firmware v1.3.10.51).\n\n## Nodes\n- **Araknis Switch** (controller): connection status, *Discover Ports* command.\n- **PoE Summary**: total PoE power drawn (W) and the switch's PoE budget (W).\n- **One node per PoE port** (named from the port name set on the switch, e.g. \"Port 1 - My Camera\"):\n  - PoE Power On/Off (status), PoE State (Disabled / Detecting / Delivering / Fault ...), Link (Down / 10M / 100M / 1G), PoE power (W), voltage (V), current (mA)\n  - Commands: **PoE On**, **PoE Off**, **PoE Power Cycle** (only while PoE is On), **Query**\n\nAll nodes request the generic controller icon (`GenericCtl`).\n\n## Setup\nInstall, open the plugin's configuration page and enter the switch **host** (IP), **username** and **password**. The switch is polled every 30 seconds.\n\n## How it works / caveats\n- Araknis publishes no API for this switch and SNMP is disabled on it by default. The plugin uses the same JSON interface the switch's own web page uses (RSA-encrypted login, then `/cgi-bin/datajson.cgi`). This was worked out from the switch's own pages, so a firmware update could change it.\n- The switch ties a login session to the client IP address. Failed logins can lock an account out, so after a rejected login the plugin waits 5 minutes before trying again.\n- Port nodes are named at creation. To pick up a renamed switch port, delete that node and run *Discover Ports*.\n- SFP ports and LAGs are not modelled (no PoE).\n",
+  "override_bodies": {
+    "start": "    def start(self):\n        from udi_interface import LOGGER\n        LOGGER.info('Araknis plugin starting')\n        self._started = True\n        self.discover()\n",
+    "stop": "    def stop(self):\n        from udi_interface import LOGGER\n        try:\n            from poeport import api_logout\n            client = getattr(self, '_client', None)\n            if client is not None:\n                api_logout(client)\n        except Exception as ex:\n            LOGGER.debug('Araknis logout failed: %s', ex)\n",
+    "parameterHandler": "    def parameterHandler(self, params):\n        params = params or {}\n        cfg = {}\n        for key in ('host', 'username', 'password'):\n            val = params.get(key)\n            cfg[key] = val.strip() if isinstance(val, str) else ''\n        old = getattr(self, '_cfg', None)\n        self._cfg = cfg\n        if old is not None and old != cfg:\n            self._client = None\n            self._ports = {}\n            self._summary = None\n            if getattr(self, '_started', False):\n                self.discover()\n",
+    "discover": "    def discover(self, *args, **kwargs):\n        import time\n        from udi_interface import LOGGER\n        from poeport import PoePort, make_client, fetch_all, apply_all\n        from poesummary import PoeSummary\n\n        cfg = getattr(self, '_cfg', None) or {}\n        if not (cfg.get('host') and cfg.get('username') and cfg.get('password')):\n            self.poly.Notices['config'] = 'Enter the switch IP address, username and password in the plugin configuration.'\n            return\n        try:\n            self.poly.Notices.delete('config')\n        except Exception:\n            pass\n\n        client = getattr(self, '_client', None)\n        if client is None:\n            client = make_client(cfg['host'], cfg['username'], cfg['password'])\n            self._client = client\n            self._ports = {}\n            self._summary = None\n        try:\n            data = fetch_all(client)\n        except Exception as ex:\n            LOGGER.error('Araknis: cannot read switch: %s', ex)\n            self.poly.Notices['conn'] = 'Cannot read the Araknis switch: %s' % ex\n            return\n        try:\n            self.poly.Notices.delete('conn')\n        except Exception:\n            pass\n\n        ports = getattr(self, '_ports', None)\n        if ports is None:\n            ports = self._ports = {}\n        added = False\n        for po in sorted(data['ports']):\n            if po in ports:\n                continue\n            sw_name = data['ports'][po]['name']\n            if not sw_name:\n                name = 'Port %d' % po\n            elif sw_name.lower().startswith('port'):\n                name = sw_name\n            else:\n                name = 'Port %d - %s' % (po, sw_name)\n            addr = self.poly.getValidAddress('port%d' % po)\n            node = PoePort(self.poly, self.address, addr, self.poly.getValidName(name), client, po)\n            self.poly.addNode(node)\n            ports[po] = node\n            added = True\n        if getattr(self, '_summary', None) is None:\n            self._summary = PoeSummary(self.poly, self.address, self.poly.getValidAddress('summary'),\n                                       self.poly.getValidName('PoE Summary'))\n            self.poly.addNode(self._summary)\n            added = True\n        if added:\n            time.sleep(2)\n        apply_all(ports, self._summary, data)\n        LOGGER.info('Araknis: %d port nodes ready', len(ports))\n",
+    "shortPoll": "    def shortPoll(self, *args, **kwargs):\n        from udi_interface import LOGGER\n        from poeport import fetch_all, apply_all\n        client = getattr(self, '_client', None)\n        ports = getattr(self, '_ports', None)\n        if client is None or not ports:\n            return\n        try:\n            data = fetch_all(client)\n        except Exception as ex:\n            LOGGER.warning('Araknis poll failed: %s', ex)\n            self.poly.Notices['conn'] = 'Cannot read the Araknis switch: %s' % ex\n            return\n        try:\n            self.poly.Notices.delete('conn')\n        except Exception:\n            pass\n        apply_all(ports, getattr(self, '_summary', None), data)\n",
+    "longPoll": "    def longPoll(self, *args, **kwargs):\n        # If the first discovery failed (switch unreachable, wrong login), retry here.\n        if getattr(self, '_started', False) and not getattr(self, '_ports', None):\n            self.discover()\n"
+  },
+  "node_classes": {
+    "poeport": "\"\"\"Araknis 310-series web-API client plus the per-port node.\n\nThe switch has no documented API. This talks to the same JSON CGI its own web\npage uses (/cgi-bin/datajson.cgi). Login: GET /conf/key returns an RSA public\nkey; username and password are each RSA (PKCS#1 v1.5) encrypted, base64\nencoded and POSTed as 'etvapqp' / 'rctater' to ?login.  The session is tied to\nthe client IP (no cookie).  A JSON 'result' of 0 is success, 2 is an expired\nsession, 9 is a lockout.\n\"\"\"\nimport base64\nimport json\nimport threading\nimport time\n\nimport requests\nimport udi_interface\nfrom cryptography.hazmat.primitives import serialization\nfrom cryptography.hazmat.primitives.asymmetric import padding\n\nLOGGER = udi_interface.LOGGER\nNode = udi_interface.Node\n\nLOGIN_BACKOFF_S = 300\nSPEED_MAP = {10: 1, 100: 2, 1000: 3}\nDELIVERING = (2, 6)  # 2 = Delivering, 6 = Requesting power\n\n\ndef make_client(host, username, password):\n    return {\n        'host': (host or '').strip(),\n        'user': username or '',\n        'pw': password or '',\n        's': requests.Session(),\n        'lock': threading.RLock(),\n        'logged_in': False,\n        'next_login': 0.0,\n        'rowmap': {},\n    }\n\n\ndef _login(c):\n    now = time.time()\n    if now < c['next_login']:\n        raise RuntimeError('login suppressed for %d more seconds after a rejected login'\n                           % int(c['next_login'] - now))\n    base = 'http://%s' % c['host']\n    s = c['s']\n    r = s.get(base + '/conf/key', timeout=10)\n    r.raise_for_status()\n    pub = serialization.load_pem_public_key(r.text.strip().encode())\n\n    def enc(v):\n        return base64.b64encode(pub.encrypt(v.encode(), padding.PKCS1v15())).decode()\n\n    r = s.post(base + '/cgi-bin/datajson.cgi?login',\n               data={'etvapqp': enc(c['user']), 'rctater': enc(c['pw'])}, timeout=20)\n    j = json.loads(r.text)\n    if j.get('result') != 0:\n        c['next_login'] = now + LOGIN_BACKOFF_S\n        c['logged_in'] = False\n        raise RuntimeError('switch rejected the login (result %s %s)' % (j.get('result'), j.get('msg', '')))\n    c['logged_in'] = True\n    LOGGER.info('Araknis: logged in to %s', c['host'])\n\n\ndef _call(c, method, endpoint, body=None):\n    with c['lock']:\n        for _attempt in (0, 1):\n            if not c['logged_in']:\n                _login(c)\n            url = 'http://%s/cgi-bin/datajson.cgi?%s' % (c['host'], endpoint)\n            if method == 'GET':\n                r = c['s'].get(url, timeout=20)\n            else:\n                r = c['s'].post(url, data=body, timeout=30)\n            j = json.loads(r.text)\n            if j.get('result') == 2:  # session expired\n                c['logged_in'] = False\n                continue\n            if j.get('result') != 0:\n                raise RuntimeError('switch returned result=%s msg=%s for %s'\n                                   % (j.get('result'), j.get('msg', ''), endpoint))\n            return j\n    raise RuntimeError('switch session keeps expiring')\n\n\ndef api_get(c, endpoint):\n    return _call(c, 'GET', endpoint)\n\n\ndef api_post(c, endpoint, body):\n    return _call(c, 'POST', endpoint, body)\n\n\ndef api_logout(c):\n    try:\n        if c.get('logged_in'):\n            c['s'].get('http://%s/cgi-bin/datajson.cgi?logout' % c['host'], timeout=5)\n    except Exception:\n        pass\n    c['logged_in'] = False\n\n\ndef fetch_all(c):\n    \"\"\"Read PoE, link and global PoE data. Returns {'ports': {n: {...}}, 'total': W, 'budget': W}.\"\"\"\n    poe = api_get(c, 'poe_port').get('poe_port')\n    if not isinstance(poe, dict) or not isinstance(poe.get('port'), list):\n        raise RuntimeError('switch returned no PoE port data')\n    poe = poe['port']\n    cfg = api_get(c, 'port_cfg').get('port_cfg') or {}\n    cfg = {p['po']: p for p in (cfg.get('port') or [])}\n    glob = api_get(c, 'poe_global').get('poe_global') or {}\n    c['rowmap'] = {p['po']: i + 1 for i, p in enumerate(poe)}\n    ports = {}\n    for p in poe:\n        po = p['po']\n        link = cfg.get(po, {})\n        speed = 0\n        if link.get('up') == 1 and link.get('en', 1) == 1:\n            speed = SPEED_MAP.get(link.get('sp'), 0)\n        live = p.get('st') in DELIVERING\n        ports[po] = {\n            'name': link.get('na') or '',\n            'en': 1 if p.get('en') else 0,\n            'st': int(p.get('st', 0)),\n            'speed': speed,\n            # Same scaling the switch's own web page uses.\n            'watts': round(p.get('ppw', 0) / 10.0, 1) if live else 0,\n            'volts': round(p.get('vol', 0) * 64.45 / 1000.0, 1) if live else 0,\n            'ma': p.get('amp', 0) if live else 0,\n        }\n    return {'ports': ports,\n            'total': round(glob.get('ap', 0) / 10.0, 1),\n            'budget': glob.get('pb', 0)}\n\n\ndef build_body(c, port, vals):\n    \"\"\"vals = [enable, power_class, priority, cycle]; -1 means leave unchanged.\"\"\"\n    row = c.get('rowmap', {}).get(port, port)\n    return 'p%d=%s&' % (row, ','.join(str(v) for v in vals))\n\n\ndef apply_all(ports, summary, data):\n    for po, node in list(ports.items()):\n        node.apply(data['ports'].get(po))\n    if summary is not None:\n        summary.apply(data)\n\n\nclass PoePort(Node):\n    id = 'poeport'\n    drivers = [\n        {'driver': 'ST', 'value': 0, 'uom': 25, 'name': 'PoE Power'},\n        {'driver': 'POE_STATE', 'value': 0, 'uom': 25, 'name': 'PoE State'},\n        {'driver': 'LINK_SPEED', 'value': 0, 'uom': 25, 'name': 'Link'},\n        {'driver': 'CPW', 'value': 0, 'uom': 73, 'name': 'PoE Power Used'},\n        {'driver': 'CV', 'value': 0, 'uom': 72, 'name': 'PoE Voltage'},\n        {'driver': 'CC', 'value': 0, 'uom': 41, 'name': 'PoE Current'},\n    ]\n\n    def __init__(self, polyglot, primary, address, name, client, port):\n        super().__init__(polyglot, primary, address, name)\n        self.client = client\n        self.port = port\n\n    def apply(self, d):\n        if not d:\n            return\n        self.setDriver('ST', d['en'])\n        self.setDriver('POE_STATE', d['st'])\n        self.setDriver('LINK_SPEED', d['speed'])\n        self.setDriver('CPW', d['watts'])\n        self.setDriver('CV', d['volts'])\n        self.setDriver('CC', d['ma'])\n\n    def refresh(self):\n        data = fetch_all(self.client)\n        self.apply(data['ports'].get(self.port))\n\n    def change(self, vals, settle=2.0):\n        try:\n            api_post(self.client, 'poe_port_setting', build_body(self.client, self.port, vals))\n            time.sleep(settle)\n            self.refresh()\n        except Exception as ex:\n            LOGGER.error('Araknis port %s command failed: %s', self.port, ex)\n\n    def poe_on(self, command=None):\n        LOGGER.info('Araknis port %s: PoE On', self.port)\n        self.change([1, -1, -1, -1])\n\n    def poe_off(self, command=None):\n        LOGGER.info('Araknis port %s: PoE Off', self.port)\n        self.change([0, -1, -1, -1])\n\n    def poe_cycle(self, command=None):\n        try:\n            enabled = int(float(self.getDriver('ST')))\n        except Exception:\n            enabled = 1\n        if enabled != 1:\n            LOGGER.warning('Araknis port %s: PoE is Off, power cycle ignored', self.port)\n            return\n        LOGGER.info('Araknis port %s: PoE Power Cycle', self.port)\n        self.change([-1, -1, -1, 1], settle=4.0)\n\n    def query(self, command=None):\n        try:\n            self.refresh()\n        except Exception as ex:\n            LOGGER.error('Araknis port %s query failed: %s', self.port, ex)\n        self.reportDrivers()\n\n    commands = {\n        'DON': poe_on,\n        'DOF': poe_off,\n        'POE_CYCLE': poe_cycle,\n        'QUERY': query,\n    }\n",
+    "poesummary": "\"\"\"Switch-wide PoE totals node.\"\"\"\nimport udi_interface\n\nNode = udi_interface.Node\n\n\nclass PoeSummary(Node):\n    id = 'poesummary'\n    drivers = [\n        {'driver': 'ST', 'value': 0, 'uom': 73, 'name': 'Total PoE Power'},\n        {'driver': 'POE_BUDGET', 'value': 0, 'uom': 73, 'name': 'PoE Budget'},\n    ]\n\n    def apply(self, data):\n        self.setDriver('ST', data['total'])\n        self.setDriver('POE_BUDGET', data['budget'])\n\n    def query(self, command=None):\n        self.reportDrivers()\n\n    commands = {'QUERY': query}\n"
+  },
+  "tests": {
+    "test_poeport.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\nimport poeport  # noqa: E402\n\nPOE = {'poe_port': {'port': [\n    {'po': 1, 'en': 1, 'pr': 0, 'cl': 1, 'st': 2, 'err': 4, 'vol': 836, 'amp': 88, 'tem': 200, 'ppw': 47, 'pdc': 4},\n    {'po': 2, 'en': 1, 'pr': 0, 'cl': 1, 'st': 1, 'err': 1, 'vol': 0, 'amp': 0, 'tem': 199, 'ppw': 0, 'pdc': 0},\n    {'po': 3, 'en': 0, 'pr': 0, 'cl': 1, 'st': 0, 'err': 1, 'vol': 0, 'amp': 0, 'tem': 199, 'ppw': 0, 'pdc': 0},\n]}}\nCFG = {'port_cfg': {'port': [\n    {'po': 1, 'na': 'My Camera', 'en': 1, 'up': 1, 'sp': 100, 'dp': 1},\n    {'po': 2, 'na': 'Port 2', 'en': 1, 'up': 0, 'sp': 1000, 'dp': 1},\n    {'po': 3, 'na': '', 'en': 0, 'up': 0, 'sp': 1000, 'dp': 1},\n]}}\nGLOB = {'poe_global': {'pb': 375, 'ap': 235}}\n\n\ndef fake_get(c, endpoint):\n    return {'poe_port': POE, 'port_cfg': CFG, 'poe_global': GLOB}[endpoint] if False else (\n        POE if endpoint == 'poe_port' else CFG if endpoint == 'port_cfg' else GLOB)\n\n\ndef test_fetch_all_scaling(monkeypatch):\n    monkeypatch.setattr(poeport, 'api_get', fake_get)\n    c = poeport.make_client('1.2.3.4', 'u', 'p')\n    d = poeport.fetch_all(c)\n    p1 = d['ports'][1]\n    assert p1['watts'] == 4.7\n    assert p1['volts'] == 53.9\n    assert p1['ma'] == 88\n    assert p1['speed'] == 2          # 100 Mbps\n    assert p1['name'] == 'My Camera'\n    assert d['ports'][2]['watts'] == 0 and d['ports'][2]['speed'] == 0\n    assert d['ports'][3]['en'] == 0 and d['ports'][3]['st'] == 0\n    assert d['total'] == 23.5\n    assert d['budget'] == 375\n    assert c['rowmap'] == {1: 1, 2: 2, 3: 3}\n\n\ndef test_build_body():\n    c = poeport.make_client('1.2.3.4', 'u', 'p')\n    c['rowmap'] = {23: 23}\n    assert poeport.build_body(c, 23, [0, -1, -1, -1]) == 'p23=0,-1,-1,-1&'\n    assert poeport.build_body(c, 23, [-1, -1, -1, 1]) == 'p23=-1,-1,-1,1&'\n\n\ndef test_no_poe_data_raises(monkeypatch):\n    monkeypatch.setattr(poeport, 'api_get', lambda c, e: {'poe_port': ''})\n    c = poeport.make_client('1.2.3.4', 'u', 'p')\n    try:\n        poeport.fetch_all(c)\n    except RuntimeError:\n        return\n    raise AssertionError('expected RuntimeError')\n"
+  },
+  "custom_param_docs": "<h3>Araknis 310 Switch \u2013 configuration</h3>\n<p>Fill in the three fields below, then save. The plugin connects to the switch's local web interface (HTTP, port 80) and creates one node per PoE port plus a PoE Summary node.</p>\n<ul>\n<li><b>host</b> \u2013 The switch's IP address on your LAN, e.g. <code>xxx.xxx.xxx.xxx</code>. Use the same address you type into a browser to reach the switch's web page. A DHCP reservation is recommended so the address never changes.</li>\n<li><b>username</b> \u2013 A switch account that is allowed to change settings (administrator level). Use a dedicated account for IoX if you can (Settings &rarr; Access Management on the switch) so it is easy to see in the switch's own user list.</li>\n<li><b>password</b> \u2013 That account's password. It is stored in the plugin's configuration on your eisy only.</li>\n</ul>\n<p><b>Good to know</b></p>\n<ul>\n<li>The switch locks an account out after repeated failed logins. If the credentials are wrong the plugin waits 5 minutes between attempts to avoid that, and shows a notice on this page.</li>\n<li>Node names are taken from the port names set on the switch (e.g. \"Port 1 - My Camera\") when the nodes are first created. To pick up a renamed port, delete that node and press <b>Discover Ports</b>.</li>\n<li>Port commands: <b>PoE On</b>, <b>PoE Off</b>, <b>PoE Power Cycle</b> (only works while PoE is On), <b>Query</b>.</li>\n</ul>",
+  "custom_typed_params": null,
+  "controller_class": "Controller",
+  "controller_module": "plugin",
+  "version": "1.0.2"
+}

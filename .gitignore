@@ -1,0 +1,31 @@
+# Runtime logs -- PG3 debug logging records the full config incl. the switch password
+logs/
+*.log
+crash.log
+
+# PG3-generated per-plugin credentials and runtime state (NEVER commit)
+plugin_*.key
+plugin_*.cert
+*.key
+*.cert
+*.pem
+svc.pid
+NSplugin_*.lock
+*.lock
+
+# Local debug credentials (live PG3INIT/MQTT token)
+.iox_env
+.vscode/
+
+# Python / local dev
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Plugin runtime data
+persist/
+data/
+
+# Contains developer email + installation-specific nsid (regenerate after cloning)
+server_entry.json

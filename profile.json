@@ -1,0 +1,222 @@
+{
+  "editors": [
+    {
+      "id": "poe_onoff",
+      "ranges": [
+        {
+          "uom": "25",
+          "subset": "0,1",
+          "names": {
+            "0": "Off",
+            "1": "On"
+          }
+        }
+      ]
+    },
+    {
+      "id": "link_speed",
+      "ranges": [
+        {
+          "uom": "25",
+          "subset": "0,1,2,3",
+          "names": {
+            "0": "Down",
+            "1": "10 Mbps",
+            "2": "100 Mbps",
+            "3": "1 Gbps"
+          }
+        }
+      ]
+    },
+    {
+      "id": "poe_state",
+      "ranges": [
+        {
+          "uom": "25",
+          "subset": "0,1,2,3,4,5,6",
+          "names": {
+            "0": "Disabled",
+            "1": "Detecting",
+            "2": "Delivering",
+            "3": "Test Mode",
+            "4": "Fault",
+            "5": "Other Fault",
+            "6": "Requesting"
+          }
+        }
+      ]
+    },
+    {
+      "id": "watts",
+      "ranges": [
+        {
+          "uom": "73",
+          "min": 0,
+          "max": 400,
+          "prec": 1
+        }
+      ]
+    },
+    {
+      "id": "volts",
+      "ranges": [
+        {
+          "uom": "72",
+          "min": 0,
+          "max": 60,
+          "prec": 1
+        }
+      ]
+    },
+    {
+      "id": "milliamps",
+      "ranges": [
+        {
+          "uom": "41",
+          "min": 0,
+          "max": 1000,
+          "prec": 0
+        }
+      ]
+    },
+    {
+      "id": "ED_CONTROLLER_ST",
+      "ranges": [
+        {
+          "subset": "0,1",
+          "uom": "25",
+          "names": {
+            "0": "Not Connected",
+            "1": "Connected"
+          }
+        }
+      ]
+    }
+  ],
+  "linkdefs": [],
+  "nodedefs": [
+    {
+      "id": "controller",
+      "name": "Araknis Switch",
+      "icon": "GenericCtl",
+      "properties": [
+        {
+          "id": "ST",
+          "name": "Status",
+          "editor": "ED_CONTROLLER_ST"
+        }
+      ],
+      "cmds": {
+        "sends": [],
+        "accepts": [
+          {
+            "id": "DISCOVER",
+            "name": "Discover Ports",
+            "native": "false"
+          }
+        ]
+      },
+      "links": {
+        "ctl": [],
+        "rsp": []
+      }
+    },
+    {
+      "id": "poesummary",
+      "name": "PoE Summary",
+      "icon": "GenericCtl",
+      "properties": [
+        {
+          "id": "ST",
+          "name": "Total PoE Power",
+          "editor": "watts"
+        },
+        {
+          "id": "POE_BUDGET",
+          "name": "PoE Budget",
+          "editor": "watts"
+        }
+      ],
+      "cmds": {
+        "sends": [],
+        "accepts": [
+          {
+            "id": "QUERY",
+            "name": "Query",
+            "native": "false"
+          }
+        ]
+      },
+      "links": {
+        "ctl": [],
+        "rsp": []
+      }
+    },
+    {
+      "id": "poeport",
+      "name": "Switch Port",
+      "icon": "GenericCtl",
+      "properties": [
+        {
+          "id": "ST",
+          "name": "PoE Power",
+          "editor": "poe_onoff"
+        },
+        {
+          "id": "POE_STATE",
+          "name": "PoE State",
+          "editor": "poe_state"
+        },
+        {
+          "id": "LINK_SPEED",
+          "name": "Link",
+          "editor": "link_speed"
+        },
+        {
+          "id": "CPW",
+          "name": "PoE Power Used",
+          "editor": "watts"
+        },
+        {
+          "id": "CV",
+          "name": "PoE Voltage",
+          "editor": "volts"
+        },
+        {
+          "id": "CC",
+          "name": "PoE Current",
+          "editor": "milliamps"
+        }
+      ],
+      "cmds": {
+        "sends": [],
+        "accepts": [
+          {
+            "id": "DON",
+            "name": "PoE On",
+            "native": "false"
+          },
+          {
+            "id": "DOF",
+            "name": "PoE Off",
+            "native": "false"
+          },
+          {
+            "id": "POE_CYCLE",
+            "name": "PoE Power Cycle",
+            "native": "false"
+          },
+          {
+            "id": "QUERY",
+            "name": "Query",
+            "native": "false"
+          }
+        ]
+      },
+      "links": {
+        "ctl": [],
+        "rsp": []
+      }
+    }
+  ]
+}
