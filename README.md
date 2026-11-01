@@ -1,8 +1,10 @@
-# Araknis
+# Araknis Switch — eisy / IoX
 
-# Araknis (310-series switch) plugin for eisy / IoX
+Monitors and controls PoE on up to **16 Araknis 310-series managed switches** from a single PG3x node server.
 
-Monitors and controls PoE on an Araknis 310-series managed switch (developed against an AN-310-SW-24-POE, firmware v1.3.10.51).
+Developed against the AN-310-SW-24-POE, firmware v1.3.10.51.
+
+**Current version: 1.1.0**
 
 ## Nodes
 - **Araknis Switch** (controller): connection status, *Discover Ports* command.
@@ -14,7 +16,78 @@ Monitors and controls PoE on an Araknis 310-series managed switch (developed aga
 All nodes request the generic controller icon (`GenericCtl`).
 
 ## Setup
-Install, open the plugin's configuration page and enter the switch **host** (IP), **username** and **password**. The switch is polled every 30 seconds.
+
+Install the plugin from PG3x and open its configuration page.
+
+### Switch 1
+
+Enter these three custom parameters:
+
+| Parameter | Value |
+|---|---|
+| `host` | Switch IP address |
+| `username` | Administrator username |
+| `password` | Administrator password |
+
+### Switches 2–16
+
+To configure another switch, add three custom parameters using
+the switch number as a suffix.
+
+For example, Switch 2:
+
+| Parameter | Value |
+|---|---|
+| `host2` | Switch 2 IP address |
+| `username2` | Switch 2 administrator username |
+| `password2` | Switch 2 administrator password |
+
+Switch 3 uses `host3`, `username3`, `password3`, continuing through
+`host16`, `username16`, `password16`.
+
+All three parameters are required for each configured switch.
+Unused switch numbers may be omitted.
+
+A static IP address or DHCP reservation is recommended for each switch.
+
+### Node organization
+
+Each switch receives its own PoE port nodes and PoE Summary node.
+
+Switch 1 retains the original node addresses:
+
+- `port1`, `port2`, etc.
+- `summary`
+
+Additional switches use unique addresses:
+
+- Switch 2: `sw2port1`, `sw2port2`, etc., and `sw2summary`
+- Switch 3: `sw3port1`, `sw3port2`, etc., and `sw3summary`
+
+**Existing IoX programs referencing Switch 1 retain their original
+node addresses.**
+
+The plugin polls switches every 30 seconds. Switches are handled
+independently, so one unreachable switch does not prevent other
+switches from updating.
+
+The controller status is On when at least one configured switch
+is communicating successfully.
+
+To remove an additional switch, remove its three custom parameters
+and save the configuration. Its nodes will be removed from IoX.
+
+## Version History
+
+### 1.1.0
+- Support for up to 16 independently configured Araknis switches.
+- Separate PoE port and summary nodes for each switch.
+- Independent polling and connection notices.
+- Recovery when a switch is unavailable during startup.
+- Preserve original Switch 1 node addresses and IoX compatibility.
+
+### 1.0.3
+- Improved credential redaction and logging safety.
 
 ## How it works / caveats
 - Araknis publishes no API for this switch and SNMP is disabled on it by default. The plugin uses the same JSON interface the switch's own web page uses (RSA-encrypted login, then `/cgi-bin/datajson.cgi`). This was worked out from the switch's own pages, so a firmware update could change it.
