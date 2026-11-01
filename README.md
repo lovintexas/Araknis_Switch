@@ -4,7 +4,7 @@ Monitors and controls PoE on up to **16 Araknis 310-series managed switches** fr
 
 Developed against the AN-310-SW-24-POE, firmware v1.3.10.51.
 
-**Current version: 1.1.0**
+**Current version: 1.2.0**
 
 ## Nodes
 - **Araknis Switch** (controller): connection status, *Discover Ports* command.
@@ -78,6 +78,14 @@ To remove an additional switch, remove its three custom parameters
 and save the configuration. Its nodes will be removed from IoX.
 
 ## Version History
+
+### Version 1.2.0
+- Added a physical-switch parent node for each configured switch.
+- PoE Summary and port nodes now appear beneath their respective switches.
+- Each physical-switch node reports its own connection status.
+- Existing port and summary node addresses are preserved.
+
+
 
 ### 1.1.0
 - Support for up to 16 independently configured Araknis switches.

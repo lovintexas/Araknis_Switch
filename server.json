@@ -4,8 +4,8 @@
   "type": "python3",
   "executable": "main.py",
   "install": "install.sh",
-  "description": "Monitor and control PoE on up to 16 Araknis 310-series managed switches. Per-port PoE control, power monitoring, link status, and independent switch polling.",
-  "notice": "Configure Switch 1 using host, username, and password. For additional switches, add host2, username2, password2 through host16, username16, password16. See README for setup instructions.",
+  "description": "Monitor and control PoE on up to 16 Araknis 310-series managed switches. Hierarchical switch, PoE summary, and port nodes with power monitoring, link status, and independent polling.",
+  "notice": "Configure Switch 1 using host, username, and password. Additional switches use host2, username2, password2 through host16, username16, password16. Each switch has its own parent node containing its PoE summary and ports.",
   "shortPoll": 30,
   "longPoll": 300,
   "customParams": {
