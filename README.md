@@ -118,3 +118,35 @@ This plugin's development referenced the following source(s), whose license is n
 - [udi-presenceUnifi-nodeserver/README.md at main · UniversalDevicesInc-PG3/udi-presenceUnifi-nodeserver · GitHub](https://github.com/UniversalDevicesInc-PG3/udi-presenceUnifi-nodeserver/blob/main/README.md) -- license: GPL-3.0
 
 See LICENSE.md for full third-party attribution.
+
+## IoX Node Icons — Confirmed Fix (November 1, 2026)
+
+The default light-bulb icons were replaced with generic controller icons.
+
+### Required configuration
+
+- `profile/nls/en_us.txt` contains the four `GenericCtl` icon definitions.
+- `main.py` calls `updateJsonProfile()` followed by `updateProfile()`.
+- The plugin directory must be traversable by the `polyglot` user.
+
+### Root cause
+
+The local plugin directory was owned by `admin:admin` with permissions `770`.
+
+PG3x runs its profile installer as `polyglot`, which could not access the directory. The installer logged:
+
+    No profile files found to upload
+
+### Confirmed solution
+
+    chmod 755 /home/admin/araknis-switch
+
+Verify access:
+
+    sudo -u polyglot cat /tmp/eisy-ai/generated_plugins/araknis_switch/profile/nls/en_us.txt | grep ICON
+
+All four `GenericCtl` entries should appear.
+
+IMPORTANT: Git does not preserve directory permissions. New installations must ensure the plugin directory is accessible to `polyglot`.
+
+Do not troubleshoot node hints or icon names before checking these permissions.
