@@ -20,6 +20,7 @@ class Controller(udi_interface.Node):
         self._switches = {}
         # Protect switch connections and node collections during updates.
         self._switch_lock = threading.RLock()
+        self._parent_ack = {}
         self.persist_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persist")
         os.makedirs(self.persist_dir, exist_ok=True)
         # Synchronization for __start()'s wait-for-configDone gate (see __configDoneHandler).
@@ -74,6 +75,11 @@ class Controller(udi_interface.Node):
 
     def __addNodeDoneHandler(self, data):
         LOGGER.debug("%s: add node done: %s", self.name, data)
+        address = data.get('address')
+        entry = self._parent_ack.get(address)
+        if entry is not None:
+            entry['success'] = not bool(data.get('error'))
+            entry['event'].set()
 
     def __removeNodeDoneHandler(self, data):
         LOGGER.debug("%s: remove node done: %s", self.name, data)
@@ -160,11 +166,26 @@ class Controller(udi_interface.Node):
                 address = 'switch%d' % number
                 name = 'Switch %d' % number
                 sw['parent'] = AraknisSwitch(
-                    self.poly, self.address,
+                    self.poly, self.poly.getValidAddress(address),
                     self.poly.getValidAddress(address),
                     self.poly.getValidName(name))
-                self.poly.addNode(sw['parent'])
+                ack = {'event': threading.Event(), 'success': False}
+                self._parent_ack[sw['parent'].address] = ack
+                try:
+                    self.poly.addNode(sw['parent'])
+                    if not ack['event'].wait(timeout=15):
+                        LOGGER.error(
+                            'Switch %d parent registration timed out', number)
+                        continue
+                    if not ack['success']:
+                        LOGGER.error(
+                            'Switch %d parent registration rejected', number)
+                        continue
+                finally:
+                    self._parent_ack.pop(sw['parent'].address, None)
                 added = True
+                LOGGER.info('Waiting 3 seconds for IoX switch registration')
+                time.sleep(3)
 
             sw['parent'].set_online(True)
 
@@ -186,12 +207,26 @@ class Controller(udi_interface.Node):
                 address = ('port%d' % po if number == 1
                            else 'sw%dport%d' % (number, po))
 
+                parent = sw['parent'].address
+
                 node = PoePort(
-                    self.poly, sw['parent'].address,
+                    self.poly, parent,
                     self.poly.getValidAddress(address),
                     self.poly.getValidName(name),
                     sw['client'], po)
-                self.poly.addNode(node)
+                ack = {'event': threading.Event(), 'success': False}
+                self._parent_ack[node.address] = ack
+                try:
+                    self.poly.addNode(node)
+                    if not ack['event'].wait(timeout=15):
+                        LOGGER.error('Port %s registration timed out', node.address)
+                        continue
+                    if not ack['success']:
+                        LOGGER.error('Port %s registration rejected', node.address)
+                        continue
+                finally:
+                    self._parent_ack.pop(node.address, None)
+
                 sw['ports'][po] = node
                 added = True
 

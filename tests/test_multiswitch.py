@@ -18,6 +18,15 @@ def test_two_switch_discovery():
         'password2': 'test2',
     }
     ctl._switches = {}
+    ctl._parent_ack = {}
+
+    def acknowledge_parent(node, *args, **kwargs):
+        ack = ctl._parent_ack.get(node.address)
+        if ack is not None:
+            ack['success'] = True
+            ack['event'].set()
+
+    ctl.poly.addNode.side_effect = acknowledge_parent
     ctl._switch_lock = __import__('threading').RLock()
 
     data = {
@@ -34,6 +43,10 @@ def test_two_switch_discovery():
          patch('poeport.apply_all'), \
          patch('time.sleep'):
 
+        switch_cls.side_effect = lambda poly, primary, address, name: (
+            MagicMock(address=address)
+        )
+
         ctl.discover()
 
         assert set(ctl._switches) == {1, 2}
@@ -47,21 +60,18 @@ def test_two_switch_discovery():
         summaries = [call.args[2] for call in summary_cls.call_args_list]
         assert summaries == ['summary', 'sw2summary']
 
-        # Each physical switch must be a child of the controller.
+        # Each physical switch is a primary IoX node.
         assert [c.args[2] for c in switch_cls.call_args_list] == [
             'switch1', 'switch2'
         ]
-        assert all(c.args[1] == 'ctl' for c in switch_cls.call_args_list)
+        assert all(c.args[1] == c.args[2] for c in switch_cls.call_args_list)
 
-        # Ports and summaries must belong to their physical switch.
-        parent1 = ctl._switches[1]['parent'].address
-        parent2 = ctl._switches[2]['parent'].address
-
+        # Ports and summaries belong to their respective switches.
         assert [c.args[1] for c in port_cls.call_args_list] == [
-            parent1, parent1, parent2, parent2
+            'switch1', 'switch1', 'switch2', 'switch2'
         ]
         assert [c.args[1] for c in summary_cls.call_args_list] == [
-            parent1, parent2
+            'switch1', 'switch2'
         ]
 
 
@@ -237,6 +247,15 @@ def test_discovery_recovers_after_switch_offline():
     ctl.address = 'ctl'
     ctl._switch_lock = threading.RLock()
     ctl._switches = {}
+    ctl._parent_ack = {}
+
+    def acknowledge_parent(node, *args, **kwargs):
+        ack = ctl._parent_ack.get(node.address)
+        if ack is not None:
+            ack['success'] = True
+            ack['event'].set()
+
+    ctl.poly.addNode.side_effect = acknowledge_parent
     ctl._started = True
     ctl._cfg = {
         'host': '192.168.1.10',
@@ -281,3 +300,47 @@ def test_discovery_recovers_after_switch_offline():
         assert len(ctl._switches[1]['ports']) == 1
         assert len(ctl._switches[2]['ports']) == 1
         assert attempts['192.168.1.11'] == 2
+
+
+def test_parent_registration_rejected():
+    import threading
+
+    ctl = Controller.__new__(Controller)
+    ctl.poly = MagicMock()
+    ctl.setDriver = MagicMock()
+    ctl.address = 'ctl'
+    ctl._switches = {}
+    ctl._parent_ack = {}
+    ctl._switch_lock = threading.RLock()
+    ctl._cfg = {
+        'host': '192.168.1.10',
+        'username': 'admin',
+        'password': 'test',
+    }
+    ctl.poly.getValidAddress.side_effect = lambda x: x
+    ctl.poly.getValidName.side_effect = lambda x: x
+
+    def reject_parent(node, *args, **kwargs):
+        ack = ctl._parent_ack.get(node.address)
+        if ack:
+            ack['success'] = False
+            ack['event'].set()
+
+    ctl.poly.addNode.side_effect = reject_parent
+
+    with patch('poeport.make_client', return_value=MagicMock()), \
+         patch('poeport.fetch_all', return_value={
+             'ports': {1: {'name': 'Camera'}},
+             'total': 10,
+             'budget': 120,
+         }), \
+         patch('araknisswitch.AraknisSwitch') as switch_cls, \
+         patch('poeport.PoePort') as port_cls, \
+         patch('poesummary.PoeSummary') as summary_cls:
+
+        switch_cls.return_value.address = 'switch1'
+        ctl.discover()
+
+        port_cls.assert_not_called()
+        summary_cls.assert_not_called()
+        assert ctl._parent_ack == {}
