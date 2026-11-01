@@ -16,12 +16,16 @@ class Controller(udi_interface.Node):
     def __init__(self, polyglot, primary='ctl', address='ctl', name='Araknis Controller'):
         super().__init__(polyglot, primary, address, name)
         self.poly = polyglot
+        # Independent connection, port nodes, and summary for each switch.
+        self._switches = {}
+        # Protect switch connections and node collections during updates.
+        self._switch_lock = threading.RLock()
         self.persist_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persist")
         os.makedirs(self.persist_dir, exist_ok=True)
         # Synchronization for __start()'s wait-for-configDone gate (see __configDoneHandler).
         self.configDone = threading.Condition()
         self.configDoneAlready = False
-        self.poly.setCustomParamsDoc('<h3>Araknis 310 Switch – configuration</h3>\n<p>Fill in the three fields below, then save. The plugin connects to the switch\'s local web interface (HTTP, port 80) and creates one node per PoE port plus a PoE Summary node.</p>\n<ul>\n<li><b>host</b> – The switch\'s IP address on your LAN, e.g. <code>xxx.xxx.xxx.xxx</code>. Use the same address you type into a browser to reach the switch\'s web page. A DHCP reservation is recommended so the address never changes.</li>\n<li><b>username</b> – A switch account that is allowed to change settings (administrator level). Use a dedicated account for IoX if you can (Settings &rarr; Access Management on the switch) so it is easy to see in the switch\'s own user list.</li>\n<li><b>password</b> – That account\'s password. It is stored in the plugin\'s configuration on your eisy only.</li>\n</ul>\n<p><b>Good to know</b></p>\n<ul>\n<li>The switch locks an account out after repeated failed logins. If the credentials are wrong the plugin waits 5 minutes between attempts to avoid that, and shows a notice on this page.</li>\n<li>Node names are taken from the port names set on the switch (e.g. "Port 1 - My Camera") when the nodes are first created. To pick up a renamed port, delete that node and press <b>Discover Ports</b>.</li>\n<li>Port commands: <b>PoE On</b>, <b>PoE Off</b>, <b>PoE Power Cycle</b> (only works while PoE is On), <b>Query</b>.</li>\n</ul>')
+        self.poly.setCustomParamsDoc('\n<h3>Araknis 310 Switch - Configuration</h3>\n<p>This plugin supports up to 16 Araknis switches using their local\nweb interfaces (HTTP port 80). Each switch has its own PoE port nodes\nand PoE Summary node.</p>\n\n<h4>Switch 1</h4>\n<ul>\n<li><b>host</b> - Switch IP address</li>\n<li><b>username</b> - Administrator username</li>\n<li><b>password</b> - Administrator password</li>\n</ul>\n\n<h4>Additional switches (2 through 16)</h4>\n<p>Add three custom parameters for each additional switch.\nFor example, Switch 2 uses:</p>\n<ul>\n<li><b>host2</b> - Switch 2 IP address</li>\n<li><b>username2</b> - Switch 2 administrator username</li>\n<li><b>password2</b> - Switch 2 administrator password</li>\n</ul>\n<p>Switch 3 uses <b>host3</b>, <b>username3</b>, and\n<b>password3</b>, continuing through Switch 16.</p>\n\n<p>All three parameters must be present for a switch to be enabled.\nUnused switch entries can be omitted.</p>\n\n<h4>Node addresses</h4>\n<p>Switch 1 retains its existing node addresses:\n<code>port1</code>, <code>port2</code>, and <code>summary</code>.</p>\n<p>Additional switches use unique addresses such as\n<code>sw2port1</code> and <code>sw2summary</code>.\nExisting IoX programs referencing Switch 1 remain compatible.</p>\n\n<h4>Notes</h4>\n<ul>\n<li>Use DHCP reservations or static IP addresses for switches.</li>\n<li>Incorrect credentials may trigger a switch account lockout.\nThe plugin limits repeated login attempts.</li>\n<li>Switches are polled independently. An offline switch does not\nprevent other switches from updating.</li>\n<li>Port commands include PoE On, PoE Off, PoE Power Cycle, and Query.</li>\n<li>Port names are initially obtained from the switch configuration.</li>\n</ul>\n')
         # Additional node classes (poeport, poesummary) -- construct and self.poly.addNode() them from discover()/start() once their real addresses/names are known (run candidate names/addresses through self.poly.getValidName()/getValidAddress() first).
         self.poly.subscribe(self.poly.START, self.__start, address)
         self.poly.subscribe(self.poly.STOP, self.__stop)
@@ -94,98 +98,130 @@ class Controller(udi_interface.Node):
         self.discover()
 
     def stop(self):
-        from udi_interface import LOGGER
-        try:
-            from poeport import api_logout
-            client = getattr(self, '_client', None)
-            if client is not None:
-                api_logout(client)
-        except Exception as ex:
-            LOGGER.debug('Araknis logout failed: %s', ex)
+        from poeport import api_logout
+        for sw in self._switches.values():
+            try:
+                api_logout(sw['client'])
+            except Exception as ex:
+                LOGGER.debug('Araknis logout failed: %s', ex)
+        self._started = False
+
+    def _switch_config(self, number):
+        cfg = getattr(self, '_cfg', {}) or {}
+        suffix = '' if number == 1 else str(number)
+        return tuple(cfg.get(k + suffix, '') for k in
+                     ('host', 'username', 'password'))
 
     def discover(self, *args, **kwargs):
         import time
-        from udi_interface import LOGGER
         from poeport import PoePort, make_client, fetch_all, apply_all
         from poesummary import PoeSummary
 
-        cfg = getattr(self, '_cfg', None) or {}
-        if not (cfg.get('host') and cfg.get('username') and cfg.get('password')):
-            self.poly.Notices['config'] = 'Enter the switch IP address, username and password in the plugin configuration.'
-            return
-        try:
-            self.poly.Notices.delete('config')
-        except Exception:
-            pass
-
-        client = getattr(self, '_client', None)
-        if client is None:
-            client = make_client(cfg['host'], cfg['username'], cfg['password'])
-            self._client = client
-            self._ports = {}
-            self._summary = None
-        try:
-            data = fetch_all(client)
-        except Exception as ex:
-            LOGGER.error('Araknis: cannot read switch: %s', ex)
-            self.poly.Notices['conn'] = 'Cannot read the Araknis switch: %s' % ex
-            return
-        try:
-            self.poly.Notices.delete('conn')
-        except Exception:
-            pass
-
-        ports = getattr(self, '_ports', None)
-        if ports is None:
-            ports = self._ports = {}
-        added = False
-        for po in sorted(data['ports']):
-            if po in ports:
+        online = 0
+        for number in range(1, 17):
+            host, username, password = self._switch_config(number)
+            if not (host and username and password):
                 continue
-            sw_name = data['ports'][po]['name']
-            if not sw_name:
-                name = 'Port %d' % po
-            elif sw_name.lower().startswith('port'):
-                name = sw_name
-            else:
-                name = 'Port %d - %s' % (po, sw_name)
-            addr = self.poly.getValidAddress('port%d' % po)
-            node = PoePort(self.poly, self.address, addr, self.poly.getValidName(name), client, po)
-            self.poly.addNode(node)
-            ports[po] = node
-            added = True
-        if getattr(self, '_summary', None) is None:
-            self._summary = PoeSummary(self.poly, self.address, self.poly.getValidAddress('summary'),
-                                       self.poly.getValidName('PoE Summary'))
-            self.poly.addNode(self._summary)
-            added = True
-        if added:
-            time.sleep(2)
-        apply_all(ports, self._summary, data)
-        LOGGER.info('Araknis: %d port nodes ready', len(ports))
+
+            credentials = (host, username, password)
+            sw = self._switches.get(number)
+
+            if sw is None:
+                sw = {
+                    'credentials': credentials,
+                    'client': make_client(*credentials),
+                    'ports': {},
+                    'summary': None,
+                }
+                self._switches[number] = sw
+
+            try:
+                data = fetch_all(sw['client'])
+            except Exception as ex:
+                LOGGER.warning('Araknis switch %d discovery failed: %s',
+                               number, ex)
+                self.poly.Notices['conn%d' % number] = (
+                    'Switch %d (%s): %s' % (number, host, ex))
+                continue
+
+            try:
+                self.poly.Notices.delete('conn%d' % number)
+            except Exception:
+                pass
+
+            online += 1
+            added = False
+            for po in sorted(data['ports']):
+                if po in sw['ports']:
+                    continue
+
+                port_name = data['ports'][po]['name']
+                if not port_name:
+                    name = 'Port %d' % po
+                elif port_name.lower().startswith('port'):
+                    name = port_name
+                else:
+                    name = 'Port %d - %s' % (po, port_name)
+
+                if number > 1:
+                    name = 'Switch %d - %s' % (number, name)
+
+                address = ('port%d' % po if number == 1
+                           else 'sw%dport%d' % (number, po))
+
+                node = PoePort(
+                    self.poly, self.address,
+                    self.poly.getValidAddress(address),
+                    self.poly.getValidName(name),
+                    sw['client'], po)
+                self.poly.addNode(node)
+                sw['ports'][po] = node
+                added = True
+
+            if sw['summary'] is None:
+                address = ('summary' if number == 1
+                           else 'sw%dsummary' % number)
+                name = ('PoE Summary' if number == 1
+                        else 'Switch %d PoE Summary' % number)
+                sw['summary'] = PoeSummary(
+                    self.poly, self.address,
+                    self.poly.getValidAddress(address),
+                    self.poly.getValidName(name))
+                self.poly.addNode(sw['summary'])
+                added = True
+
+            if added:
+                time.sleep(2)
+
+            apply_all(sw['ports'], sw['summary'], data)
+            LOGGER.info('Araknis switch %d: %d ports ready',
+                        number, len(sw['ports']))
+
+        self.setDriver("ST", 1 if online else 0)
 
     def shortPoll(self, *args, **kwargs):
-        from udi_interface import LOGGER
         from poeport import fetch_all, apply_all
-        client = getattr(self, '_client', None)
-        ports = getattr(self, '_ports', None)
-        if client is None or not ports:
-            return
-        try:
-            data = fetch_all(client)
-        except Exception as ex:
-            LOGGER.warning('Araknis poll failed: %s', ex)
-            self.poly.Notices['conn'] = 'Cannot read the Araknis switch: %s' % ex
-            return
-        try:
-            self.poly.Notices.delete('conn')
-        except Exception:
-            pass
-        apply_all(ports, getattr(self, '_summary', None), data)
+
+        online = 0
+        for number, sw in list(self._switches.items()):
+            try:
+                data = fetch_all(sw['client'])
+                apply_all(sw['ports'], sw['summary'], data)
+                online += 1
+                try:
+                    self.poly.Notices.delete('conn%d' % number)
+                except Exception:
+                    pass
+            except Exception as ex:
+                LOGGER.warning('Araknis switch %d poll failed: %s',
+                               number, ex)
+                self.poly.Notices['conn%d' % number] = (
+                    'Switch %d: %s' % (number, ex))
+
+        self.setDriver("ST", 1 if online else 0)
 
     def longPoll(self, *args, **kwargs):
-        # If the first discovery failed (switch unreachable, wrong login), retry here.
-        if getattr(self, '_started', False) and not getattr(self, '_ports', None):
+        if getattr(self, '_started', False):
             self.discover()
 
     # --- log redaction: installed when this module is imported ---------------------------
@@ -208,24 +244,68 @@ class Controller(udi_interface.Node):
         # log it, and re-check that the filter is on every handler.
         logsafe.add_secret(params.get('password') if isinstance(params.get('password'), str) else None)
         cfg = {}
-        for key in ('host', 'username', 'password'):
-            val = params.get(key)
-            cfg[key] = val.strip() if isinstance(val, str) else ''
+        for n in range(1, 17):
+            suffix = '' if n == 1 else str(n)
+            for field in ('host', 'username', 'password'):
+                key = field + suffix
+                val = params.get(key)
+                cfg[key] = val.strip() if isinstance(val, str) else ''
+                if field == 'password':
+                    logsafe.add_secret(cfg[key])
         logsafe.add_secret(cfg['password'])
         logsafe.install()
         LOGGER.debug('Araknis: parameters received (host set: %s, username set: %s, password set: %s)',
                      bool(cfg['host']), bool(cfg['username']), bool(cfg['password']))
         old = getattr(self, '_cfg', None)
         self._cfg = cfg
+
         if old is not None and old != cfg:
-            self._client = None
-            self._ports = {}
-            self._summary = None
+            from poeport import api_logout
+
+            for number in range(1, 17):
+                suffix = '' if number == 1 else str(number)
+                keys = ('host' + suffix, 'username' + suffix,
+                        'password' + suffix)
+                if any(old.get(k) != cfg.get(k) for k in keys):
+                    sw = self._switches.get(number)
+                    if sw is not None:
+                        try:
+                            api_logout(sw['client'])
+                        except Exception:
+                            pass
+
+                        credentials = tuple(cfg.get(k, '') for k in keys)
+                        if all(credentials):
+                            from poeport import make_client
+                            sw['client'] = make_client(*credentials)
+                            sw['credentials'] = credentials
+                            for node in sw['ports'].values():
+                                node.client = sw['client']
+                        else:
+                            # Switch removed: delete only its own IoX nodes.
+                            for node in list(sw['ports'].values()):
+                                self.poly.delNode(node.address)
+                            if sw['summary'] is not None:
+                                self.poly.delNode(sw['summary'].address)
+                            self._switches.pop(number, None)
+
             if getattr(self, '_started', False):
                 self.discover()
 
     def customParamHandler(self, *args, **kwargs):
         pass
+
+    def _synchronized_switch_method(method):
+        def wrapped(self, *args, **kwargs):
+            with self._switch_lock:
+                return method(self, *args, **kwargs)
+        return wrapped
+
+    discover = _synchronized_switch_method(discover)
+    shortPoll = _synchronized_switch_method(shortPoll)
+    longPoll = _synchronized_switch_method(longPoll)
+    parameterHandler = _synchronized_switch_method(parameterHandler)
+    stop = _synchronized_switch_method(stop)
 
     # --- command dispatch (profile cmds.accepts; see udi_interface.Node.runCmd) ---
     commands = {'DISCOVER': discover}
