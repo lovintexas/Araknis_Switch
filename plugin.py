@@ -116,6 +116,7 @@ class Controller(udi_interface.Node):
         import time
         from poeport import PoePort, make_client, fetch_all, apply_all
         from poesummary import PoeSummary
+        from araknisswitch import AraknisSwitch
 
         online = 0
         for number in range(1, 17):
@@ -132,12 +133,15 @@ class Controller(udi_interface.Node):
                     'client': make_client(*credentials),
                     'ports': {},
                     'summary': None,
+                    'parent': None,
                 }
                 self._switches[number] = sw
 
             try:
                 data = fetch_all(sw['client'])
             except Exception as ex:
+                if sw.get('parent') is not None:
+                    sw['parent'].set_online(False)
                 LOGGER.warning('Araknis switch %d discovery failed: %s',
                                number, ex)
                 self.poly.Notices['conn%d' % number] = (
@@ -151,6 +155,19 @@ class Controller(udi_interface.Node):
 
             online += 1
             added = False
+
+            if sw.get('parent') is None:
+                address = 'switch%d' % number
+                name = 'Switch %d' % number
+                sw['parent'] = AraknisSwitch(
+                    self.poly, self.address,
+                    self.poly.getValidAddress(address),
+                    self.poly.getValidName(name))
+                self.poly.addNode(sw['parent'])
+                added = True
+
+            sw['parent'].set_online(True)
+
             for po in sorted(data['ports']):
                 if po in sw['ports']:
                     continue
@@ -170,7 +187,7 @@ class Controller(udi_interface.Node):
                            else 'sw%dport%d' % (number, po))
 
                 node = PoePort(
-                    self.poly, self.address,
+                    self.poly, sw['parent'].address,
                     self.poly.getValidAddress(address),
                     self.poly.getValidName(name),
                     sw['client'], po)
@@ -184,7 +201,7 @@ class Controller(udi_interface.Node):
                 name = ('PoE Summary' if number == 1
                         else 'Switch %d PoE Summary' % number)
                 sw['summary'] = PoeSummary(
-                    self.poly, self.address,
+                    self.poly, sw['parent'].address,
                     self.poly.getValidAddress(address),
                     self.poly.getValidName(name))
                 self.poly.addNode(sw['summary'])
@@ -207,12 +224,16 @@ class Controller(udi_interface.Node):
             try:
                 data = fetch_all(sw['client'])
                 apply_all(sw['ports'], sw['summary'], data)
+                if sw.get('parent') is not None:
+                    sw['parent'].set_online(True)
                 online += 1
                 try:
                     self.poly.Notices.delete('conn%d' % number)
                 except Exception:
                     pass
             except Exception as ex:
+                if sw.get('parent') is not None:
+                    sw['parent'].set_online(False)
                 LOGGER.warning('Araknis switch %d poll failed: %s',
                                number, ex)
                 self.poly.Notices['conn%d' % number] = (
@@ -287,6 +308,8 @@ class Controller(udi_interface.Node):
                                 self.poly.delNode(node.address)
                             if sw['summary'] is not None:
                                 self.poly.delNode(sw['summary'].address)
+                            if sw.get('parent') is not None:
+                                self.poly.delNode(sw['parent'].address)
                             self._switches.pop(number, None)
 
             if getattr(self, '_started', False):

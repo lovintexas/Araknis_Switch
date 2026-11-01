@@ -30,6 +30,7 @@ def test_two_switch_discovery():
          patch('poeport.fetch_all', return_value=data), \
          patch('poeport.PoePort') as port_cls, \
          patch('poesummary.PoeSummary') as summary_cls, \
+         patch('araknisswitch.AraknisSwitch') as switch_cls, \
          patch('poeport.apply_all'), \
          patch('time.sleep'):
 
@@ -45,6 +46,23 @@ def test_two_switch_discovery():
 
         summaries = [call.args[2] for call in summary_cls.call_args_list]
         assert summaries == ['summary', 'sw2summary']
+
+        # Each physical switch must be a child of the controller.
+        assert [c.args[2] for c in switch_cls.call_args_list] == [
+            'switch1', 'switch2'
+        ]
+        assert all(c.args[1] == 'ctl' for c in switch_cls.call_args_list)
+
+        # Ports and summaries must belong to their physical switch.
+        parent1 = ctl._switches[1]['parent'].address
+        parent2 = ctl._switches[2]['parent'].address
+
+        assert [c.args[1] for c in port_cls.call_args_list] == [
+            parent1, parent1, parent2, parent2
+        ]
+        assert [c.args[1] for c in summary_cls.call_args_list] == [
+            parent1, parent2
+        ]
 
 
 def test_independent_polling():
@@ -249,6 +267,7 @@ def test_discovery_recovers_after_switch_offline():
          patch('poeport.fetch_all', side_effect=fake_fetch), \
          patch('poeport.PoePort'), \
          patch('poesummary.PoeSummary'), \
+         patch('araknisswitch.AraknisSwitch'), \
          patch('poeport.apply_all'), \
          patch('time.sleep'):
 

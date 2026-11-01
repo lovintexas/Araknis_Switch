@@ -217,6 +217,32 @@
         "ctl": [],
         "rsp": []
       }
+    },
+    {
+      "id": "araknisswitch",
+      "name": "Araknis Physical Switch",
+      "icon": "GenericCtl",
+      "properties": [
+        {
+          "id": "ST",
+          "name": "Connection Status",
+          "editor": "ED_CONTROLLER_ST"
+        }
+      ],
+      "cmds": {
+        "sends": [],
+        "accepts": [
+          {
+            "id": "QUERY",
+            "name": "Query",
+            "native": "false"
+          }
+        ]
+      },
+      "links": {
+        "ctl": [],
+        "rsp": []
+      }
     }
   ]
 }
