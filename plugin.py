@@ -118,6 +118,119 @@ class Controller(udi_interface.Node):
         return tuple(cfg.get(k + suffix, '') for k in
                      ('host', 'username', 'password'))
 
+    # =====================================================================
+    # DEVELOPER NOTES — IoX / PG3x MULTI-SWITCH NODE HIERARCHY
+    # =====================================================================
+    #
+    # IMPORTANT: These rules were established while debugging Araknis
+    # multi-switch support on November 1, 2026.
+    #
+    # Required IoX Admin Console hierarchy:
+    #
+    #   Araknis Controller (ctl)
+    #       Switch 1 (switch1)
+    #           Port 1 ... Port 24
+    #           PoE Summary
+    #       Switch 2 (switch2)
+    #           Port 1 ... Port 24
+    #           PoE Summary
+    #
+    # 1. PHYSICAL SWITCHES MUST BE PRIMARY NODES
+    #
+    #    Construct each AraknisSwitch with its OWN address as both the
+    #    primary-node address and node address:
+    #
+    #       AraknisSwitch(poly, switch_address, switch_address, name)
+    #
+    #    Do NOT use "ctl" as the primary-node address for a physical
+    #    switch. The controller is the PG3x management node, not the
+    #    primary node for the individual switch's ports.
+    #
+    # 2. PORTS AND SUMMARIES BELONG TO THEIR PHYSICAL SWITCH
+    #
+    #    Construct PoePort and PoeSummary using:
+    #
+    #       sw['parent'].address
+    #
+    #    as their primary-node address. Do NOT use self.address ("ctl").
+    #    Otherwise all ports appear directly beneath Araknis Controller.
+    #
+    # 3. WAIT FOR ADDNODEDONE BEFORE ADDING CHILD NODES
+    #
+    #    Register the physical switch first, then wait for its
+    #    ADDNODEDONE acknowledgment before registering its ports.
+    #    The _parent_ack dictionary associates node addresses with
+    #    threading.Event objects and success flags.
+    #
+    #    This is necessary because poly.addNode() does not by itself
+    #    guarantee that IoX has finished registering the node.
+    #
+    #    The current code also waits three seconds after successful
+    #    physical-switch registration. This was retained from testing
+    #    and provides additional time for IoX registration propagation.
+    #
+    # 4. HISTORICAL FAILURE: HTTP 400 ON CHILD REGISTRATION
+    #
+    #    Initially, switch1 and switch2 were registered with "ctl" as
+    #    their primary node. Subsequent attempts to register ports under
+    #    switch1 failed with HTTP 400, even though identical test nodes
+    #    could be registered under "ctl".
+    #
+    #    Changing the Python constructor alone did not fix the existing
+    #    installation. PG3x could report primaryNode="switch1" while
+    #    the persisted IoX node record still contained "n035_ctl".
+    #
+    #    The persisted IoX parent relationship was stale.
+    #
+    # 5. RECOVERY WHEN CHANGING AN EXISTING NODE HIERARCHY
+    #
+    #    Stop the Araknis plugin before removing nodes.
+    #    Remove the affected Araknis switch nodes through the IoX
+    #    Admin Console, then restart the plugin with the corrected
+    #    registration code. If existing port nodes retain their old
+    #    parents, those nodes may also require deletion/recreation.
+    #
+    #    WARNING: Delete only the intended Araknis nodes. Do not
+    #    delete nodes belonging to other PG3x plugins.
+    #
+    #    A plugin restart alone is not guaranteed to repair stale
+    #    IoX node relationships.
+    #
+    # 6. VERIFICATION
+    #
+    #    Check ADDNODEDONE log entries for:
+    #
+    #       switch1:     primaryNode="switch1", isPrimary=1
+    #       switch2:     primaryNode="switch2", isPrimary=1
+    #       port1:       primaryNode="switch1", isPrimary=0
+    #       sw2port1:    primaryNode="switch2", isPrimary=0
+    #       summary:     primaryNode="switch1", isPrimary=0
+    #       sw2summary:  primaryNode="switch2", isPrimary=0
+    #
+    #    Confirm the hierarchy visually in the IoX Admin Console.
+    #    Also verify PG3x eventually reports Connected.
+    #
+    #    During testing, PG3x temporarily remained at "Starting"
+    #    despite successful node registration and driver updates.
+    #    A subsequent restart showed Connected. The precise cause
+    #    of that temporary status was not established.
+    #
+    # 7. REGRESSION TESTING
+    #
+    #    Run:
+    #
+    #       python3 -m pytest -q
+    #
+    #    tests/test_multiswitch.py checks that each port and summary
+    #    uses its physical switch as its primary node. Its mocked
+    #    AraknisSwitch objects must expose realistic .address values.
+    #
+    #    On November 1, 2026, all 69 tests passed after the fix.
+    #
+    # DO NOT simplify or change this registration sequence without
+    # testing both a clean installation and an existing installation.
+    # =====================================================================
+
     def discover(self, *args, **kwargs):
         import time
         from poeport import PoePort, make_client, fetch_all, apply_all
