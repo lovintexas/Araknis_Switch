@@ -74,6 +74,77 @@ if __name__ == "__main__":
     try:
         polyglot = udi_interface.Interface([])
         polyglot.start(version.ud_plugin_version)
+        # ================================================================
+        # DEVELOPER NOTES — IoX ADMIN CONSOLE NODE ICONS
+        # ================================================================
+        #
+        # Verified November 1, 2026 on eisy / PG3x, Araknis slot 35.
+        #
+        # PROBLEM:
+        #   All Araknis nodes originally displayed the default light-bulb
+        #   icon in the IoX Admin Console.
+        #
+        #   profile.json already contained "icon": "GenericCtl" for:
+        #       controller
+        #       araknisswitch
+        #       poeport
+        #       poesummary
+        #
+        #   However, updateJsonProfile() did not generate the corresponding
+        #   NLS icon entries in the installed IoX profile.
+        #
+        # VERIFIED SOLUTION:
+        #   The installed NLS file was:
+        #
+        #   /var/isy/FILES/CONF/DEF/f10/i35/nls/en_US.TXT
+        #
+        #   NOTE: The filename uses uppercase US and TXT.
+        #   Case matters on FreeBSD.
+        #
+        #   Adding these four entries manually fixed the light-bulb icons:
+        #
+        #       ND-controller-ICON = GenericCtl
+        #       ND-araknisswitch-ICON = GenericCtl
+        #       ND-poeport-ICON = GenericCtl
+        #       ND-poesummary-ICON = GenericCtl
+        #
+        #   After closing and reopening the IoX Admin Console, all four
+        #   node types displayed generic device icons. These were not
+        #   arrows, but were preferable to the default light bulbs.
+        #
+        # IMPORTANT DISTINCTION:
+        #   udi_interface.Node.hint defaults to [0, 0, 0, 0].
+        #   This is a separate mechanism from the NLS -ICON entries.
+        #   We did NOT change Node.hint to obtain the verified result.
+        #
+        # PERSISTENCE WARNING:
+        #   The successful fix was made directly to the installed IoX
+        #   NLS file. It has NOT been proven that updateJsonProfile()
+        #   preserves these entries during subsequent profile updates.
+        #   A future update may overwrite them.
+        #
+        #   Do not assume that "icon": "GenericCtl" in profile.json is
+        #   sufficient. Verify the generated NLS file after updating.
+        #
+        #   A permanent automated solution should use a supported PG3x
+        #   profile-generation mechanism if one is available, rather
+        #   than modifying IoX's internal files without verification.
+        #
+        # TROUBLESHOOTING:
+        #   Check the installed file for:
+        #
+        #       grep -i 'ICON' \\
+        #         /var/isy/FILES/CONF/DEF/f10/i35/nls/en_US.TXT
+        #
+        #   If the four entries are missing, the default icons may
+        #   return. Reopen the Admin Console after correcting them.
+        #
+        #   This icon issue is independent of the multi-switch node
+        #   hierarchy and ADDNODEDONE registration sequence. Do not
+        #   modify that working registration logic to fix icons.
+        #
+        # ================================================================
+
         profile_path = os.path.join(_PLUGIN_DIR, "profile.json")
         with open(profile_path, "r", encoding="utf-8") as f:
             response = polyglot.updateJsonProfile(json.load(f), {"waitResponse": True})
